@@ -1,17 +1,16 @@
-const KEY="worktime.pwa.v01",DAY_MS=8*60*60*1000;
-const statusEl=document.querySelector("#status"),timerEl=document.querySelector("#timer"),hoursEl=document.querySelector("#hours"),percentEl=document.querySelector("#percent"),ring=document.querySelector("#ring"),ringStage=document.querySelector(".ringStage"),overtimeRing=document.querySelector("#overtimeRing"),overtimeLabel=document.querySelector("#overtimeLabel"),progressLabel=document.querySelector("#progressLabel"),button=document.querySelector("#startStop"),buttonText=document.querySelector("#buttonText"),demo=document.querySelector("#demoOvertime");
-let state=load(),demoMs=null;
-function load(){try{return {...{running:false,startedAt:null,lastElapsedMs:0},...JSON.parse(localStorage.getItem(KEY)||"{}")}}catch{return {running:false,startedAt:null,lastElapsedMs:0}}}
-function save(){localStorage.setItem(KEY,JSON.stringify(state))}
-function elapsed(){return state.lastElapsedMs+(state.running&&state.startedAt?Date.now()-state.startedAt:0)}
-function clock(ms){const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return [h,m,s].map(v=>String(v).padStart(2,"0")).join(":")}
-function shortTime(ms){const t=Math.floor(ms/60000),h=Math.floor(t/60),m=t%60;return "+"+h+":"+String(m).padStart(2,"0")}
-function render(){const real=elapsed(),ms=demoMs??real,over=Math.max(ms-DAY_MS,0),progress=Math.min(ms/DAY_MS,1),overProgress=Math.min(over/DAY_MS,1);
-timerEl.textContent=clock(ms);ring.style.setProperty("--progress",progress);overtimeRing.style.setProperty("--overtime",overProgress);
-const isOver=over>0;ringStage.classList.toggle("overtime",isOver);overtimeLabel.textContent=isOver?shortTime(over)+" overtime":"";
-hoursEl.textContent=isOver?"8.00 h + "+(over/3600000).toFixed(2)+" h":(ms/3600000).toFixed(2)+" / 8 h";
-progressLabel.textContent=isOver?"Overtime":"Daily progress";percentEl.textContent=isOver?"+"+(over/DAY_MS*100).toFixed(0)+"%":(progress*100).toFixed(progress<.1?1:0)+"%";
-statusEl.textContent=demoMs!==null?"Preview":state.running?"Working":"Not working";buttonText.textContent=state.running?"STOP":"START";button.classList.toggle("running",state.running);demo.textContent=demoMs===null?"PREVIEW 10 HOURS":"BACK TO REAL TIME"}
-button.addEventListener("click",()=>{demoMs=null;if(state.running){state.lastElapsedMs=elapsed();state.running=false;state.startedAt=null}else{state.running=true;state.startedAt=Date.now()}save();render()});
-demo.addEventListener("click",()=>{demoMs=demoMs===null?10*60*60*1000:null;render()});render();setInterval(render,250);
-if("serviceWorker"in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"))}
+const KEY="worktime.pwa.v01",LOGKEY="worktime.geo.log.v01",DAY_MS=28800000;
+const $=s=>document.querySelector(s),statusEl=$("#status"),timerEl=$("#timer"),hoursEl=$("#hours"),percentEl=$("#percent"),ring=$("#ring"),ringStage=$(".ringStage"),overtimeRing=$("#overtimeRing"),overtimeLabel=$("#overtimeLabel"),progressLabel=$("#progressLabel"),button=$("#startStop"),buttonText=$("#buttonText");
+let state=(()=>{try{return {...{running:false,startedAt:null,lastElapsedMs:0},...JSON.parse(localStorage.getItem(KEY)||"{}")}}catch{return {running:false,startedAt:null,lastElapsedMs:0}}})();
+const elapsed=()=>state.lastElapsedMs+(state.running&&state.startedAt?Date.now()-state.startedAt:0),clock=ms=>{const t=Math.floor(ms/1000);return [Math.floor(t/3600),Math.floor(t%3600/60),t%60].map(v=>String(v).padStart(2,"0")).join(":")};
+function render(){const ms=elapsed(),over=Math.max(ms-DAY_MS,0),p=Math.min(ms/DAY_MS,1);timerEl.textContent=clock(ms);ring.style.setProperty("--progress",p);overtimeRing.style.setProperty("--overtime",Math.min(over/DAY_MS,1));ringStage.classList.toggle("overtime",over>0);overtimeLabel.textContent=over?"+ "+(over/3600000).toFixed(2)+" h overtime":"";hoursEl.textContent=over?"8.00 h + "+(over/3600000).toFixed(2)+" h":(ms/3600000).toFixed(2)+" / 8 h";progressLabel.textContent=over?"Overtime":"Daily progress";percentEl.textContent=over?"+"+(over/DAY_MS*100).toFixed(0)+"%":(p*100).toFixed(p<.1?1:0)+"%";statusEl.textContent=state.running?"Working":"Not working";buttonText.textContent=state.running?"STOP":"START";button.classList.toggle("running",state.running)}
+button.onclick=()=>{if(state.running){state.lastElapsedMs=elapsed();state.running=false;state.startedAt=null}else{state.running=true;state.startedAt=Date.now()}localStorage.setItem(KEY,JSON.stringify(state));render()};setInterval(render,250);render();
+
+let watchId=null,lastFixTs=null,fixes=0,logs=[];try{logs=JSON.parse(localStorage.getItem(LOGKEY)||"[]")}catch{}
+function stamp(){return new Date().toLocaleString()}
+function log(msg){logs.push(stamp()+"  "+msg);if(logs.length>300)logs=logs.slice(-300);localStorage.setItem(LOGKEY,JSON.stringify(logs));$("#geoLog").textContent=logs.slice().reverse().join("\n")}
+function geoUI(on){$("#geoState").textContent=on?"WATCHING":"OFF";$("#geoState").classList.toggle("on",on);$("#geoToggle").textContent=on?"STOP LOCATION TEST":"START LOCATION TEST";$("#geoToggle").classList.toggle("on",on)}
+function startGeo(){if(!navigator.geolocation){log("ERROR geolocation unavailable");return}log("START watchPosition");watchId=navigator.geolocation.watchPosition(pos=>{const now=Date.now(),gap=lastFixTs?Math.round((now-lastFixTs)/1000):null;lastFixTs=now;fixes++;$("#lastFix").textContent=new Date(now).toLocaleTimeString();$("#accuracy").textContent="±"+Math.round(pos.coords.accuracy)+" m";$("#fixCount").textContent=fixes;$("#lastGap").textContent=gap===null?"—":gap+" s";log("FIX #"+fixes+" gap="+(gap??"first")+"s acc=±"+Math.round(pos.coords.accuracy)+"m lat="+pos.coords.latitude.toFixed(5)+" lon="+pos.coords.longitude.toFixed(5));},{code,message}=>log("ERROR "+code+" "+message),{enableHighAccuracy:true,maximumAge:0,timeout:30000});geoUI(true)}
+function stopGeo(){if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;log("STOP watchPosition");geoUI(false)}
+$("#geoToggle").onclick=()=>watchId===null?startGeo():stopGeo();$("#clearLog").onclick=()=>{logs=[];localStorage.removeItem(LOGKEY);$("#geoLog").textContent="No events yet."};
+document.addEventListener("visibilitychange",()=>log("VISIBILITY "+document.visibilityState));window.addEventListener("pageshow",e=>log("PAGE SHOW"+(e.persisted?" (cached)":"")));window.addEventListener("pagehide",()=>log("PAGE HIDE"));$("#geoLog").textContent=logs.length?logs.slice().reverse().join("\n"):"No events yet.";geoUI(false);
+if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"));
