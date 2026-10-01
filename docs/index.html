@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#0b1020">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Work Time</title>
   <link rel="manifest" href="./manifest.webmanifest">
@@ -11,13 +11,19 @@
 </head>
 <body>
   <main class="app">
-    <h1>Work Time</h1>
+    <header><div class="eyebrow">TODAY</div><h1>Work Time</h1></header>
     <section class="card">
-      <div id="status" class="status">Not working</div>
-      <div id="timer" class="timer">0.00 h</div>
-      <button id="startStop" type="button">START</button>
+      <div class="ring" id="ring" style="--progress:0">
+        <div class="ringInner">
+          <div id="status" class="status">Not working</div>
+          <div id="timer" class="timer">00:00:00</div>
+          <div id="hours" class="hours">0.00 / 8 h</div>
+        </div>
+      </div>
+      <div class="progressText"><span>Daily progress</span><strong id="percent">0%</strong></div>
+      <button id="startStop" type="button"><span class="buttonDot"></span><span id="buttonText">START</span></button>
     </section>
-    <p class="version">Version 0.1 — PWA timer prototype</p>
+    <p class="version">Version 0.2 · visual timer</p>
   </main>
   <script src="./app.js"></script>
 </body>
